@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -23,24 +24,35 @@ func getClipText() (string, error) {
 	return "", fmt.Errorf("OpenClipboard")
 }
 
-func wndProc(hwnd w32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
-	if msg == w32.WM_CLIPBOARDUPDATE {
-		text, err := getClipText()
-		if err != nil {
-			fmt.Println("error:", err)
-			return 0
-		}
-		fmt.Println("clipdata:", text)
-		return 0
-	}
-	return w32.DefWindowProc(hwnd, msg, wParam, lParam)
+// Message express data type on channel
+type Message struct {
+	err  error
+	text string
 }
 
-func Main() {
+func wndProcGen(ch chan Message) func(hwnd w32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
+	return func(hwnd w32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
+		if msg == w32.WM_CLIPBOARDUPDATE {
+			text, err := getClipText()
+			if err != nil {
+				ch <- Message{err, ""}
+				return 0
+			}
+			ch <- Message{nil, text}
+			return 0
+		}
+		return w32.DefWindowProc(hwnd, msg, wParam, lParam)
+	}
+}
+
+// WatchClipboard watchs clipboard change
+func WatchClipboard(ch chan Message, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	className := syscall.StringToUTF16Ptr("for clipboard")
 	wndClassEx := w32.WNDCLASSEX{
 		ClassName: className,
-		WndProc:   syscall.NewCallback(wndProc),
+		WndProc:   syscall.NewCallback(wndProcGen(ch)),
 	}
 	wndClassEx.Size = uint32(unsafe.Sizeof(wndClassEx))
 	w32.RegisterClassEx(&wndClassEx)
