@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"syscall"
 	"unsafe"
 
@@ -46,9 +45,7 @@ func wndProcGen(ch chan Message) func(hwnd w32.HWND, msg uint32, wParam, lParam 
 }
 
 // WatchClipboard watchs clipboard change
-func WatchClipboard(ch chan Message, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func WatchClipboard(ch chan Message) {
 	className := syscall.StringToUTF16Ptr("for clipboard")
 	wndClassEx := w32.WNDCLASSEX{
 		ClassName: className,

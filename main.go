@@ -1,17 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"sync"
 )
 
 func main() {
-	var wg sync.WaitGroup
+	once := flag.Bool("o", false, "only watch changes once")
+	flag.Parse()
 
 	ch := make(chan Message)
 
-	wg.Add(1)
-	go WatchClipboard(ch, &wg)
+	go WatchClipboard(ch)
 
 	for msg := range ch {
 		if msg.err != nil {
@@ -19,7 +19,8 @@ func main() {
 		} else {
 			fmt.Println(msg.text)
 		}
+		if *once {
+			break
+		}
 	}
-
-	wg.Wait()
 }
